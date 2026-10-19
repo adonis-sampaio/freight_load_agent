@@ -1,0 +1,30 @@
+[
+  {
+    "name": "required_eta_action",
+    "model_disposition": "propose_action",
+    "expected_disposition": "propose_action",
+    "expected_validation": "accepted",
+    "expected_review": "not_required"
+  },
+  {
+    "name": "unrelated_message",
+    "model_disposition": "no_action",
+    "expected_disposition": "no_action",
+    "expected_validation": "accepted",
+    "expected_review": "not_required"
+  },
+  {
+    "name": "uncertain_message",
+    "model_disposition": "abstain",
+    "expected_disposition": "no_action",
+    "expected_validation": "accepted",
+    "expected_review": "required"
+  },
+  {
+    "name": "stale_sop_citation",
+    "model_disposition": "propose_action",
+    "expected_disposition": "no_action",
+    "expected_validation": "rejected",
+    "expected_review": "required"
+  }
+]

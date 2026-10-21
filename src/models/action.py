@@ -26,6 +26,7 @@ class ActionStatus(StrEnum):
     FAILED = "failed"
     COMPLETED = "completed"
     NO_ACTION = "no_action"
+    SIMULATED = "simulated"
 
 
 class ActionActor(StrEnum):

@@ -81,6 +81,7 @@ class LoadWorker:
         values = dict(row)
         broker_id = values.pop("broker_id")
         values.pop("processing_status", None)
+        values.pop("processing_started_at", None)
         payload = values["payload_json"]
         if isinstance(payload, str):
             values["payload_json"] = json.loads(payload)
@@ -131,5 +132,14 @@ class LoadWorker:
             broker_id,
             event.load_id,
             event.event_id,
+        )
+        logger.info(
+            "load_event_processed",
+            extra={
+                "broker_id": broker_id,
+                "load_id": event.load_id,
+                "event_id": event.event_id,
+                "correlation_id": event.correlation_id,
+            },
         )
         return True

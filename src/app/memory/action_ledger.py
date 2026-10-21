@@ -54,6 +54,7 @@ class ActionLedger:
             ActionStatus.FAILED,
             ActionStatus.DELIVERED,
             ActionStatus.COMPLETED,
+            ActionStatus.SIMULATED,
         }
         result = await self._pool.execute(
             """

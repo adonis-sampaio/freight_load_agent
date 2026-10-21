@@ -43,6 +43,42 @@ O `LoadWorker` e o fluxo de decisão são componentes do projeto; a inicializaç
 da API **não** inicia o worker automaticamente. A API persiste os eventos para
 processamento separado.
 
+## Demonstração local ou no Render
+
+O worker pode ser executado separadamente da API. A primeira versão executável
+usa decisões determinísticas de demonstração: não chama um LLM real, e os
+adaptadores não enviam mensagens nem criam tarefas/timers externos. Os
+resultados ficam registrados como decisões `demo` e eventuais ações simuladas;
+não representam uma operação de produção.
+
+Depois de instalar o projeto e aplicar `migrations/001_initial_schema.sql` e
+`migrations/002_worker_claim_recovery.sql`, configure `FREIGHT_DATABASE_URL`
+para um banco **dedicado à demonstração**. Carregue os dados de exemplo e
+inicie o worker:
+
+```bash
+FREIGHT_ENVIRONMENT=demo python -m workers.seed_demo_data
+python -m workers.run_worker
+```
+
+Execute a API em outro terminal apontando para o mesmo banco:
+
+```bash
+uvicorn app.api:app --app-dir src --host 127.0.0.1 --port 8000
+```
+
+Envie um evento `ping` para `broker_id=demo_broker` e `load_id=demo_load` em
+`/v1/events/ingest`. O evento deve passar para `completed` e a decisão
+determinística ficará registrada no PostgreSQL. No Render, mantenha a API como
+Web Service e configure um **Background Worker** separado com o start command
+`python -m workers.run_worker`; ambos usam o mesmo segredo
+`FREIGHT_DATABASE_URL`. O seeder exige `FREIGHT_ENVIRONMENT=demo` e recusa
+registros conflitantes. Não execute o worker de demonstração sobre dados de
+produção.
+
+Consulte [`specs/002-runnable-worker/quickstart.md`](specs/002-runnable-worker/quickstart.md)
+para os comandos de migração, teste e inspeção do resultado.
+
 ## Executar os evals
 
 Requer Python 3.11 ou superior. Na raiz do projeto, instale as dependências de

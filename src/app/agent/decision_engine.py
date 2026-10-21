@@ -58,6 +58,7 @@ class DecisionEngine:
         action_executor: ActionExecutor,
         settings: Settings,
         review_router: ReviewRouter,
+        demo_mode: bool = False,
     ) -> None:
         self._interpreter = interpreter
         self._validator = validator
@@ -66,6 +67,7 @@ class DecisionEngine:
         self._action_executor = action_executor
         self._settings = settings
         self._review_router = review_router
+        self._demo_mode = demo_mode
 
     async def process(self, context: DecisionContext) -> DecisionRecord:
         timer_request = await self._open_timer_request(context)
@@ -78,52 +80,47 @@ class DecisionEngine:
             await self._action_executor.execute(record, context)
             return record
 
-        input_tokens = estimate_input_tokens(context.llm_request)
-        estimated_cost = self._settings.llm_reserved_cost_per_call_usd
-        if input_tokens > self._settings.llm_max_input_tokens:
+        input_tokens = 0 if self._demo_mode else estimate_input_tokens(context.llm_request)
+        estimated_cost = 0 if self._demo_mode else self._settings.llm_reserved_cost_per_call_usd
+        if not self._demo_mode and input_tokens > self._settings.llm_max_input_tokens:
             return await self._record_budget_exceeded(
                 context,
                 reason="llm_input_token_limit_exceeded",
             )
-        try:
-            await self._decision_store.reserve_llm_call(
-                context.broker_id,
-                context.load.load_id,
-                input_tokens=input_tokens,
-                reserved_output_tokens=self._settings.llm_max_output_tokens,
-                reserved_cost_usd=estimated_cost,
-                maximum_calls=self._settings.llm_max_calls_per_load,
-                maximum_cost_usd=self._settings.llm_max_cost_per_load_usd,
-            )
-        except LLMUsageBudgetExceededError:
-            return await self._record_budget_exceeded(
-                context,
-                reason="llm_load_budget_exhausted",
-            )
+        if not self._demo_mode:
+            try:
+                await self._decision_store.reserve_llm_call(
+                    context.broker_id,
+                    context.load.load_id,
+                    input_tokens=input_tokens,
+                    reserved_output_tokens=self._settings.llm_max_output_tokens,
+                    reserved_cost_usd=estimated_cost,
+                    maximum_calls=self._settings.llm_max_calls_per_load,
+                    maximum_cost_usd=self._settings.llm_max_cost_per_load_usd,
+                )
+            except LLMUsageBudgetExceededError:
+                return await self._record_budget_exceeded(
+                    context,
+                    reason="llm_load_budget_exhausted",
+                )
 
         started = perf_counter()
         try:
             proposal = await self._interpreter.interpret(context.llm_request)
         except LLMInputLimitExceeded:
-            latency_ms = _elapsed_ms(started)
-            await self._record_llm_latency(
-                context,
-                input_tokens,
-                estimated_cost,
-                latency_ms,
-            )
+            if not self._demo_mode:
+                await self._record_llm_latency(
+                    context, input_tokens, estimated_cost, _elapsed_ms(started)
+                )
             return await self._record_budget_exceeded(
                 context,
                 reason="llm_input_token_limit_exceeded",
             )
         except InvalidProviderResponseError:
-            latency_ms = _elapsed_ms(started)
-            await self._record_llm_latency(
-                context,
-                input_tokens,
-                estimated_cost,
-                latency_ms,
-            )
+            if not self._demo_mode:
+                await self._record_llm_latency(
+                    context, input_tokens, estimated_cost, _elapsed_ms(started)
+                )
             record = self._failed_validation_record(
                 context,
                 reason="invalid_provider_response",
@@ -133,13 +130,10 @@ class DecisionEngine:
             await self._review_router.route(record, context)
             return record
         except LLMProviderError as error:
-            latency_ms = _elapsed_ms(started)
-            await self._record_llm_latency(
-                context,
-                input_tokens,
-                estimated_cost,
-                latency_ms,
-            )
+            if not self._demo_mode:
+                await self._record_llm_latency(
+                    context, input_tokens, estimated_cost, _elapsed_ms(started)
+                )
             record = self._provider_failure_record(
                 context,
                 error_type=type(error).__name__,
@@ -148,13 +142,10 @@ class DecisionEngine:
             await self._review_router.route(record, context)
             return record
 
-        latency_ms = _elapsed_ms(started)
-        await self._record_llm_latency(
-            context,
-            input_tokens,
-            estimated_cost,
-            latency_ms,
-        )
+        if not self._demo_mode:
+            await self._record_llm_latency(
+                context, input_tokens, estimated_cost, _elapsed_ms(started)
+            )
         validation = self._validator.validate(proposal, context)
         record = self._decision_record(context, proposal, validation)
 
@@ -302,6 +293,10 @@ class DecisionEngine:
             load_id=load.load_id,
             trigger_event_id=event.event_id,
             disposition=DecisionDisposition.NO_ACTION,
+            provider_id="demo" if self._demo_mode else None,
+            model_id=(
+                "deterministic-no-action" if self._demo_mode else None
+            ),
             validation_status=ValidationStatus.ACCEPTED,
             validation_reasons=("no_applicable_sop",),
             created_at=datetime.now(UTC),
@@ -334,8 +329,12 @@ class DecisionEngine:
             supporting_passage=proposal.supporting_passage,
             load_evidence_refs=tuple(proposal.load_evidence),
             proposed_actions=validation.proposed_actions,
-            provider_id=self._settings.llm_provider,
-            model_id=self._settings.llm_model_id,
+            provider_id="demo" if self._demo_mode else self._settings.llm_provider,
+            model_id=(
+                "deterministic-no-action"
+                if self._demo_mode
+                else self._settings.llm_model_id
+            ),
             prompt_schema_version=proposal.schema_version,
             uncertainty_level=proposal.uncertainty,
             validation_status=validation.validation_status,
@@ -503,6 +502,10 @@ class DecisionEngine:
             sop_version=context.active_document.version,
             sop_content_hash=context.active_document.content_hash,
             ruleset_version=context.active_rule.version,
+            provider_id="demo" if self._demo_mode else None,
+            model_id=(
+                "deterministic-no-action" if self._demo_mode else None
+            ),
             validation_status=ValidationStatus.ACCEPTED,
             validation_reasons=(reason,),
             created_at=datetime.now(UTC),

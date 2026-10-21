@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     llm_reserved_cost_per_call_usd: float = Field(default=0.05, gt=0)
     eta_request_timeout_seconds: int = Field(default=1800, gt=0, le=86400)
     max_eta_reminders: int = Field(default=2, ge=1, le=10)
+    worker_poll_interval_seconds: float = Field(default=2, gt=0, le=10)
+    worker_stale_claim_seconds: int = Field(default=900, ge=60)
+    worker_db_max_retries: int = Field(default=5, ge=0, le=20)
 
 
 @lru_cache

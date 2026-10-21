@@ -28,19 +28,30 @@ Apply the project's migrations in order. For a local database, the initial schem
 
 ```sh
 psql "$FREIGHT_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_initial_schema.sql
+psql "$FREIGHT_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_worker_claim_recovery.sql
 ```
 
-Apply the worker claim-recovery migration after the initial schema. It must be idempotent so it is safe for fresh databases whose initial schema already has the recovery field and for existing installations. The migration filename and command are finalized during implementation.
+The second migration is idempotent and adds the stale-claim index and simulated action status for fresh and existing databases.
 
 ## Prepare demonstration data
 
-Seed a broker-scoped load and a standard SOP document/rule whose stage and event type match the demonstration event:
+Seed the fixed broker `demo_broker`, load `demo_load`, and a standard `demo.ping` no-action SOP. The seeder requires the explicit demo environment and refuses conflicting records rather than overwriting them:
 
 ```sh
-python -m workers.seed_demo_data
+FREIGHT_ENVIRONMENT=demo python -m workers.seed_demo_data
 ```
 
-The seed command should be repeatable and target only the configured demo database. It must not overwrite conflicting operational records. Do not use production customer or driver data for an interview demo.
+The operation is repeatable when existing records match. Use a dedicated demo database; never seed production customer or driver data.
+
+## Worker settings
+
+All settings are optional and use the `FREIGHT_` environment prefix:
+
+| Variable | Default | Validation / behavior |
+|---|---:|---|
+| `FREIGHT_WORKER_POLL_INTERVAL_SECONDS` | `2` | Greater than 0 and at most 10; idle wait between polls |
+| `FREIGHT_WORKER_STALE_CLAIM_SECONDS` | `900` | At least 60; older processing claims are requeued at startup |
+| `FREIGHT_WORKER_DB_MAX_RETRIES` | `5` | 0-20 retries; exponential backoff is capped at 30 seconds |
 
 ## Start the API and worker
 
@@ -64,8 +75,8 @@ Submit an event for the seeded load using the existing endpoint:
 curl --fail-with-body -X POST http://127.0.0.1:8000/v1/events/ingest \
   -H 'Content-Type: application/json' \
   -d '{
-    "broker_id": "broker_a",
-    "load_id": "481207",
+    "broker_id": "demo_broker",
+    "load_id": "demo_load",
     "event_type": "ping",
     "source_channel": "system",
     "payload": {},
@@ -80,13 +91,13 @@ Use PostgreSQL to inspect the result:
 ```sql
 SELECT event_id, processing_status, processing_started_at
 FROM load_events
-WHERE broker_id = 'broker_a' AND load_id = '481207'
+WHERE broker_id = 'demo_broker' AND load_id = 'demo_load'
 ORDER BY ingested_at DESC
 LIMIT 5;
 
 SELECT trigger_event_id, disposition, validation_status, validation_reasons
 FROM decision_records
-WHERE broker_id = 'broker_a' AND load_id = '481207'
+WHERE broker_id = 'demo_broker' AND load_id = 'demo_load'
 ORDER BY created_at DESC
 LIMIT 5;
 ```
@@ -96,11 +107,18 @@ If no SOP rule applies, the worker should record an explicit `no_applicable_sop`
 ## Run focused tests
 
 ```sh
-python -m pytest -q tests/unit/test_worker_runtime.py tests/unit/test_load_worker.py
+python -m pytest -q tests/unit/test_worker_composition.py tests/unit/test_worker_runtime.py tests/unit/test_load_timeline.py tests/unit/test_load_worker.py
 python -m pytest -q tests/integration/test_worker_runtime.py
 ```
 
-The integration test requires a PostgreSQL test database configured for the test harness. Tests for proposed external actions must verify that demo adapters return simulated acknowledgements and perform no network I/O.
+The PostgreSQL integration test requires a disposable database in `FREIGHT_TEST_DATABASE_URL`; it creates and drops a uniquely named schema. Demo action adapters return synthetic `simulated` acknowledgements and make no network requests.
+
+Example test configuration:
+
+```sh
+export FREIGHT_TEST_DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/DISPOSABLE_DATABASE'
+python -m pytest -q tests/integration/test_worker_runtime.py
+```
 
 ## Stop the worker
 

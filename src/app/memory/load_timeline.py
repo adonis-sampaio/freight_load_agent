@@ -86,13 +86,15 @@ class LoadTimelineRepository:
                 LIMIT 1
             )
             UPDATE load_events AS event
-            SET processing_status = 'processing'
+            SET processing_status = 'processing',
+                processing_started_at = now()
             FROM next_event
             WHERE event.event_id = next_event.event_id
             RETURNING event.event_id, event.broker_id, event.load_id,
                       event.event_type, event.source_channel,
                       event.source_contact_id, event.payload_json,
-                      event.processing_status, event.occurred_at,
+                      event.processing_status, event.processing_started_at,
+                      event.occurred_at,
                       event.ingested_at, event.correlation_id
             """
         )
@@ -109,7 +111,8 @@ class LoadTimelineRepository:
         result = await self._pool.execute(
             """
             UPDATE load_events
-            SET processing_status = $4
+            SET processing_status = $4,
+                processing_started_at = NULL
             WHERE broker_id = $1 AND load_id = $2 AND event_id = $3
               AND processing_status = 'processing'
             """,
@@ -122,6 +125,23 @@ class LoadTimelineRepository:
             raise RuntimeError(
                 f"event {event_id} was not in processing state"
             )
+
+    async def requeue_stale_events(self, stale_after_seconds: int) -> int:
+        """Return expired processing claims to the queue without touching recent ones."""
+        if stale_after_seconds < 1:
+            raise ValueError("stale_after_seconds must be positive")
+        result = await self._pool.execute(
+            """
+            UPDATE load_events
+            SET processing_status = 'queued',
+                processing_started_at = NULL
+            WHERE processing_status = 'processing'
+              AND processing_started_at < now()
+                  - ($1::double precision * interval '1 second')
+            """,
+            float(stale_after_seconds),
+        )
+        return int(result.rsplit(" ", maxsplit=1)[-1])
 
     async def get_recent_events(
         self,

@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS load_events (
     payload_json JSONB NOT NULL,
     processing_status TEXT NOT NULL DEFAULT 'queued'
         CHECK (processing_status IN ('queued', 'processing', 'completed', 'failed')),
+    processing_started_at TIMESTAMPTZ,
     occurred_at TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     correlation_id TEXT,
@@ -180,7 +181,11 @@ CREATE TABLE IF NOT EXISTS load_actions (
         )
     ),
     status TEXT NOT NULL
-        CHECK (status IN ('queued', 'sent', 'delivered', 'failed', 'completed', 'no_action')),
+        CONSTRAINT ck_load_actions_status
+        CHECK (status IN (
+            'queued', 'sent', 'delivered', 'failed', 'completed', 'no_action',
+            'simulated'
+        )),
     trigger_event_id TEXT NOT NULL,
     sop_rule_id TEXT REFERENCES sop_rules (rule_id),
     actor TEXT NOT NULL

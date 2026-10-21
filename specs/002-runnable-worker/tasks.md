@@ -18,14 +18,14 @@
 
 **Purpose**: Add reviewable demonstration policy input before the data seeder and worker are composed.
 
-- [ ] T001 [P] Add a minimal, clearly labeled standard pickup-event SOP with a no-action demonstration rule and matching section reference in `examples/demo_sop.md`.
+- [X] T001 [P] Add a minimal, clearly labeled standard pickup-event SOP with a no-action demonstration rule and matching section reference in `examples/demo_sop.md`.
 
 ## Phase 2: Foundational
 
 **Purpose**: Prepare shared persistence and domain support required by safe demo behavior and event recovery.
 
-- [ ] T002 Add nullable `processing_started_at` to fresh schema `migrations/001_initial_schema.sql`; create idempotent forward migration `migrations/002_worker_claim_recovery.sql` that adds the same column and updates the `load_actions.status` constraint to permit `simulated`, preserving all existing statuses.
-- [ ] T003 [P] Add `ActionStatus.SIMULATED` in `src/models/action.py` and map adapter acknowledgement status `simulated` to it in `src/app/services/action_executor.py`.
+- [X] T002 Add nullable `processing_started_at` to fresh schema `migrations/001_initial_schema.sql`; create idempotent forward migration `migrations/002_worker_claim_recovery.sql` that adds the same column and updates the `load_actions.status` constraint to permit `simulated`, preserving all existing statuses.
+- [X] T003 [P] Add `ActionStatus.SIMULATED` in `src/models/action.py` and map adapter acknowledgement status `simulated` to it in `src/app/services/action_executor.py`.
 
 **Checkpoint**: Fresh and existing databases can represent stale worker claims and explicitly simulated actions.
 
@@ -37,14 +37,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Implement no-network SMS, email, task, and timer adapters that return synthetic `simulated` acknowledgements and explicit simulation logs in `src/adapters/demo_action_adapters.py`.
-- [ ] T005 [US1] Implement a deterministic no-action decision interpreter and an operator-visible log-backed review router in `src/workers/worker_composition.py`; mark demo decisions clearly and do not present log review warnings as production escalation.
-- [ ] T006 [US1] Update `DecisionEngine` in `src/app/agent/decision_engine.py` to distinguish demo interpreters from provider-backed interpreters, skip LLM call/cost reservation and latency reporting for demo calls, and keep all proposals on the existing validation path.
-- [ ] T007 [US1] Compose the existing PostgreSQL repositories, decision context builder, validator, decision engine, review router, and demo action adapters into `LoadWorker` in `src/workers/worker_composition.py`, sharing one opened database pool.
-- [ ] T008 [US1] Add executable module `src/workers/run_worker.py` that opens `Database`, builds the demo worker through `src/workers/worker_composition.py`, and repeatedly calls `LoadWorker.run_once()` with an idle wait when no event is available.
-- [ ] T009 [US1] Add an idempotent, demo-database-only seed command in `src/workers/seed_demo_data.py` that creates the documented sample load and applicable SOP document/rule from `examples/demo_sop.md`, refusing conflicting records instead of overwriting them.
-- [ ] T010 [US1] Add focused unit tests in `tests/unit/test_worker_composition.py` covering deterministic demo decision metadata, no billable LLM reservation, simulation status, and the absence of network delivery.
-- [ ] T011 [US1] Add a PostgreSQL-backed event-to-decision integration test in `tests/integration/test_worker_runtime.py` that seeds or prepares a load/SOP, queues an event, runs one worker iteration, and verifies terminal event state plus a persisted demo decision.
+- [X] T004 [US1] Implement no-network SMS, email, task, and timer adapters that return synthetic `simulated` acknowledgements and explicit simulation logs in `src/adapters/demo_action_adapters.py`.
+- [X] T005 [US1] Implement a deterministic no-action decision interpreter and an operator-visible log-backed review router in `src/workers/worker_composition.py`; mark demo decisions clearly and do not present log review warnings as production escalation.
+- [X] T006 [US1] Update `DecisionEngine` in `src/app/agent/decision_engine.py` to distinguish demo interpreters from provider-backed interpreters, skip LLM call/cost reservation and latency reporting for demo calls, and keep all proposals on the existing validation path.
+- [X] T007 [US1] Compose the existing PostgreSQL repositories, decision context builder, validator, decision engine, review router, and demo action adapters into `LoadWorker` in `src/workers/worker_composition.py`, sharing one opened database pool.
+- [X] T008 [US1] Add executable module `src/workers/run_worker.py` that opens `Database`, builds the demo worker through `src/workers/worker_composition.py`, and repeatedly calls `LoadWorker.run_once()` with an idle wait when no event is available.
+- [X] T009 [US1] Add an idempotent, demo-database-only seed command in `src/workers/seed_demo_data.py` that creates the documented sample load and applicable SOP document/rule from `examples/demo_sop.md`, refusing conflicting records instead of overwriting them.
+- [X] T010 [US1] Add focused unit tests in `tests/unit/test_worker_composition.py` covering deterministic demo decision metadata, no billable LLM reservation, simulation status, and the absence of network delivery.
+- [X] T011 [US1] Add a PostgreSQL-backed event-to-decision integration test in `tests/integration/test_worker_runtime.py` that seeds or prepares a load/SOP, queues an event, runs one worker iteration, and verifies terminal event state plus a persisted demo decision.
 
 **Checkpoint**: A reviewer can seed demonstration data, run the worker, submit a matching event, and inspect the recorded outcome without real LLM or external-service credentials.
 
@@ -56,11 +56,11 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Add validated `FREIGHT_WORKER_POLL_INTERVAL_SECONDS` (default 2, greater than 0 and at most 10), `FREIGHT_WORKER_STALE_CLAIM_SECONDS` (default 900, minimum 60), and `FREIGHT_WORKER_DB_MAX_RETRIES` (default 5, range 0-20) settings in `src/config/settings.py`; reject invalid values at startup and cap exponential database retry backoff at 30 seconds.
-- [ ] T013 [US2] Update `LoadTimelineRepository` in `src/app/memory/load_timeline.py` to timestamp atomic event claims, clear the timestamp on completion/failure, and atomically requeue only `processing` events older than the configured stale threshold.
-- [ ] T014 [US2] Extend `src/workers/run_worker.py` to log startup/readiness/shutdown, validate database availability before readiness, recover stale claims, install termination-signal handling, finish the active event before stopping, close the pool in `finally`, continue after event-scoped failures, and use bounded retry/exit behavior for database poll failures.
-- [ ] T015 [US2] Add worker lifecycle unit tests in `tests/unit/test_worker_runtime.py` for missing configuration, invalid settings, idle sleep, event-scoped failure continuation, bounded database retry, and graceful shutdown without a second claim.
-- [ ] T016 [US2] Add repository recovery tests in `tests/unit/test_load_timeline.py` and PostgreSQL integration coverage in `tests/integration/test_worker_runtime.py` proving recent claims are preserved, stale claims are requeued, and concurrent workers do not claim the same event.
+- [X] T012 [US2] Add validated `FREIGHT_WORKER_POLL_INTERVAL_SECONDS` (default 2, greater than 0 and at most 10), `FREIGHT_WORKER_STALE_CLAIM_SECONDS` (default 900, minimum 60), and `FREIGHT_WORKER_DB_MAX_RETRIES` (default 5, range 0-20) settings in `src/config/settings.py`; reject invalid values at startup and cap exponential database retry backoff at 30 seconds.
+- [X] T013 [US2] Update `LoadTimelineRepository` in `src/app/memory/load_timeline.py` to timestamp atomic event claims, clear the timestamp on completion/failure, and atomically requeue only `processing` events older than the configured stale threshold.
+- [X] T014 [US2] Extend `src/workers/run_worker.py` to log startup/readiness/shutdown, validate database availability before readiness, recover stale claims, install termination-signal handling, finish the active event before stopping, close the pool in `finally`, continue after event-scoped failures, and use bounded retry/exit behavior for database poll failures.
+- [X] T015 [US2] Add worker lifecycle unit tests in `tests/unit/test_worker_runtime.py` for missing configuration, invalid settings, idle sleep, event-scoped failure continuation, bounded database retry, and graceful shutdown without a second claim.
+- [X] T016 [US2] Add repository recovery tests in `tests/unit/test_load_timeline.py` and PostgreSQL integration coverage in `tests/integration/test_worker_runtime.py` proving recent claims are preserved, stale claims are requeued, and concurrent workers do not claim the same event.
 
 **Checkpoint**: The worker can be operated as a persistent process, stopped cleanly, and restarted without silently stranding claimed events.
 
@@ -68,9 +68,9 @@
 
 **Purpose**: Ensure operators can reproduce the demo and understand its safety and deployment limits.
 
-- [ ] T017 [P] Replace placeholders in `specs/002-runnable-worker/quickstart.md` with implemented setting names, migration commands, seed command behavior, expected database outcomes, and test prerequisites.
-- [ ] T018 [P] Update `README.md` with local worker and Render Background Worker instructions, clearly distinguishing deterministic demo decisions from live LLM decisioning and simulated actions from real delivery.
-- [ ] T019 Run the focused unit and PostgreSQL integration commands in `specs/002-runnable-worker/quickstart.md`, then correct any mismatched instructions or expected outcomes in `specs/002-runnable-worker/quickstart.md`.
+- [X] T017 [P] Replace placeholders in `specs/002-runnable-worker/quickstart.md` with implemented setting names, migration commands, seed command behavior, expected database outcomes, and test prerequisites.
+- [X] T018 [P] Update `README.md` with local worker and Render Background Worker instructions, clearly distinguishing deterministic demo decisions from live LLM decisioning and simulated actions from real delivery.
+- [X] T019 Run the focused unit and PostgreSQL integration commands in `specs/002-runnable-worker/quickstart.md`, then correct any mismatched instructions or expected outcomes in `specs/002-runnable-worker/quickstart.md`.
 
 ## Dependencies & Execution Order
 

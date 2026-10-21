@@ -196,6 +196,7 @@ class ActionExecutor:
                     ActionStatus.DELIVERED,
                     ActionStatus.COMPLETED,
                     ActionStatus.FAILED,
+                    ActionStatus.SIMULATED,
                 }
                 else None,
             }
@@ -270,6 +271,7 @@ def _acknowledgement_status(status: str) -> ActionStatus:
         "created": ActionStatus.COMPLETED,
         "completed": ActionStatus.COMPLETED,
         "acknowledged": ActionStatus.COMPLETED,
+        "simulated": ActionStatus.SIMULATED,
     }
     try:
         return statuses[status]
